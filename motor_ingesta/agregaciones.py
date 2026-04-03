@@ -19,10 +19,9 @@ def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
     # Primero deberemos leer dicho CSV infiriendo el esquema e indicando que las columnas contienen encabezados.
 
     path_timezones = str(Path(__file__).parent) + "/resources/timezones.csv"
-    timezones_pd = pd.read_csv(path_timezones)
-    timezones_df = spark.createDataFrame(timezones_pd)
+    timezones_df = spark.read.option("header", "true").option("inferSchema", "true").csv(path_timezones)
 
-    df_with_tz = ...
+    df_with_tz = df.join(timezones_df, df.Origin == timezones_df.iata_code, "left")
 
 
     # ----------------------------------------
@@ -51,9 +50,31 @@ def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
     #     que ya teníamos en FlightTime
     # (d) Antes de devolver el DF resultante, borra las columnas que estaban en timezones_df, así como la columna
     #     castedHour
-    df_with_flight_time = df_with_tz....
 
-    return df_with_flight_time
+    #punto a y b
+    df_with_flight_time = df_with_tz.withColumn(
+        "castedHour", F.lpad(F.col("DepTime").cast("string"), 4, "0")
+    ).withColumn(
+        "FlightTime",
+        F.concat(
+            F.col("FlightDate").cast("string"),
+            F.lit(" "),
+            F.col("castedHour").substr(1, 2),
+            F.lit(":"),
+            F.col("castedHour").substr(3, 2)
+        ).cast("timestamp")
+    )
+
+    # (c) Conversión a UTC
+    # Interpretamos el FlightTime según la columna iana_tz y lo pasamos a UTC
+    df_with_flight_time = df_with_flight_time.withColumn(
+        "FlightTime", F.to_utc_timestamp(F.col("FlightTime"), F.col("iana_tz"))
+    )
+
+    # (d) Limpieza: Borramos columnas auxiliares y las del CSV de timezones
+    cols_to_drop = timezones_df.columns + ["castedHour"]
+
+    return df_with_flight_time.drop(*cols_to_drop)
 
 
 def aniade_intervalos_por_aeropuerto(df: DF) -> DF:
