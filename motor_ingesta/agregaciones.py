@@ -18,9 +18,12 @@ def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
     # del CSV), dejando a null los timezones de los aeropuertos que no aparezcan en dicho fichero CSV si los hubiera.
     # Primero deberemos leer dicho CSV infiriendo el esquema e indicando que las columnas contienen encabezados.
 
-    path_timezones = str(Path(__file__).parent) + "/resources/timezones.csv"
-    timezones_df = spark.read.option("header", "true").option("inferSchema", "true").csv(path_timezones)
+    path_timezones = Path(__file__)/ "resources"/"timezones.csv"
+    timezones_pd = pd.read_csv(path_timezones)
+    timezones_df = spark.createDataFrame(timezones_pd)
 
+    #timezones_df = spark.read.option("header", "true")\
+    #    .option("inferSchema", "true").csv(path_timezones)
     df_with_tz = df.join(timezones_df, df.Origin == timezones_df.iata_code, "left")
 
 
@@ -38,7 +41,7 @@ def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
     #    i. la columna resultante de convertir FlightDate a string. Esto nos dará la parte "2023-12-15"
     #    ii. un objeto columna constante, igual a " " (carácter espacio)
     #    iii. la columna resultante de tomar el substring que empieza en la posición 1 y tiene longitud 2. Revisa
-    #         la documentación del método substr de la clase Column, y aplica (F.col(...).substr(...))
+    #         la documentación del mét odo substr de la clase Column, y aplica (F.col(...).substr(...))
     #     iv. un objeto columna constante igual a ":"
     #     v. la columna resultante de tomar el substring que empieza en la posición 3 y tiene longitud 2. Los puntos
     #        iii, iv y v nos darán la parte "20:04:00" como string
@@ -51,7 +54,7 @@ def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
     # (d) Antes de devolver el DF resultante, borra las columnas que estaban en timezones_df, así como la columna
     #     castedHour
 
-    #punto a y b
+    #punto a (transformacion con columna castedHour) y b(campo datetime con FlightTime y castedHour)
     df_with_flight_time = df_with_tz.withColumn(
         "castedHour", F.lpad(F.col("DepTime").cast("string"), 4, "0")
     ).withColumn(
@@ -65,13 +68,12 @@ def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
         ).cast("timestamp")
     )
 
-    # (c) Conversión a UTC
-    # Interpretamos el FlightTime según la columna iana_tz y lo pasamos a UTC
+    # c (Conversión a UTC)
     df_with_flight_time = df_with_flight_time.withColumn(
         "FlightTime", F.to_utc_timestamp(F.col("FlightTime"), F.col("iana_tz"))
     )
 
-    # (d) Limpieza: Borramos columnas auxiliares y las del CSV de timezones
+    # d (Limpieza de columnas auxiliares y las del timezones_df)
     cols_to_drop = timezones_df.columns + ["castedHour"]
 
     return df_with_flight_time.drop(*cols_to_drop)
@@ -98,7 +100,26 @@ def aniade_intervalos_por_aeropuerto(df: DF) -> DF:
     # El DF resultante de esta función debe ser idéntico al de entrada pero con 3 columnas nuevas añadidas por la
     # derecha, llamadas FlightTime_next, Airline_next y diff_next. Cualquier columna auxiliar debe borrarse.
 
-    w = ...     # ventana
-    df_with_next_flight = ...
+    #ventana particionada por campo origin, ordenada por FlightTime
+    w = Window.partitionBy("Origin").orderBy("FlightTime")
 
-    return df_with_next_flight
+    # columna info_vuelo de pares FlightTime, Reporting_Airline
+    df_with_next_flight = df.withColumn("info_vuelo", F.struct("FlightTime", "Reporting_Airline"))
+
+    # columna vuelo_siguiente usando usando ventana tomando como referencia campo info_vuelo
+    df_with_next_flight = df_with_next_flight.withColumn("vuelo_siguiente", F.lag(F.col("info_vuelo"), -1).over(w))
+
+    # añadir info en la estructura de FlightTime y Reporting_Airline para vuelo_siguiente
+    df_with_next_flight = df_with_next_flight.withColumn(
+        "FlightTime_next", F.col("vuelo_siguiente.FlightTime")
+    ).withColumn(
+        "Airline_next", F.col("vuelo_siguiente.Reporting_Airline")
+    )
+
+    # calcular la diferencia entre FlightTime_next y FlightTime convirtiendo a long
+    df_with_next_flight = df_with_next_flight.withColumn(
+        "diff_next",
+        F.col("FlightTime_next").cast("long") - F.col("FlightTime").cast("long")
+    )
+    # eliminar columnas auxiliares info_vuelo y vuelo_siguiente
+    return df_with_next_flight.drop("info_vuelo","vuelo_siguiente")

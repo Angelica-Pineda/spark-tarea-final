@@ -7,13 +7,16 @@ class MotorIngesta:
     """
     Completar docstring
     """
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, spark: SparkSession = None):
         """
         Completar docstring
         :param config_file:
         """
         self.config = config
-        self.spark = SparkSession.builder.getOrCreate()
+        if spark:
+            self.spark = spark
+        else:
+            self.spark = SparkSession.builder.getOrCreate()
 
     def ingesta_fichero(self, json_path: str) -> DF:
         """
@@ -36,7 +39,7 @@ class MotorIngesta:
         flights_day_df = self.spark.read.option("multiLine", "true").json(json_path)
 
         aplanado_df = self.aplana_df(flights_day_df)
-        lista_obj_column = [F.col(diccionario["column_name"]).cast(diccionario["type"]).alias(diccionario["column_name"], metadata={"comment": diccionario["comment"]})
+        lista_obj_column = [F.col(diccionario["name"]).cast(diccionario["type"]).alias(diccionario["name"], metadata={"comment": diccionario["comment"]})
                                   for diccionario in self.config["data_columns"] ]
         resultado_df = aplanado_df.select(*lista_obj_column)
         return resultado_df
