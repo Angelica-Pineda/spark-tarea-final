@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 
+from motor_ingesta.agregaciones import aniade_hora_utc, aniade_intervalos_por_aeropuerto
+
 root_path = Path(__file__).parent.parent
 
 config_file= str(root_path/"config"/"config.json")

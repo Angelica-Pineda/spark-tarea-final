@@ -18,12 +18,10 @@ def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
     # del CSV), dejando a null los timezones de los aeropuertos que no aparezcan en dicho fichero CSV si los hubiera.
     # Primero deberemos leer dicho CSV infiriendo el esquema e indicando que las columnas contienen encabezados.
 
-    path_timezones = Path(__file__)/ "resources"/"timezones.csv"
+    path_timezones = Path(__file__).parent / "resources"/"timezones.csv"
     timezones_pd = pd.read_csv(path_timezones)
     timezones_df = spark.createDataFrame(timezones_pd)
 
-    #timezones_df = spark.read.option("header", "true")\
-    #    .option("inferSchema", "true").csv(path_timezones)
     df_with_tz = df.join(timezones_df, df.Origin == timezones_df.iata_code, "left")
 
 

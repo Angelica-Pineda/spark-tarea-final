@@ -5,9 +5,10 @@ from pathlib import Path
 import os
 
 
-from pyspark.sql import SparkSession, functions as F
-from motor_ingesta.motor_ingesta import MotorIngesta
+from pyspark.sql import functions as F
+
 from motor_ingesta.agregaciones import aniade_hora_utc, aniade_intervalos_por_aeropuerto
+from motor_ingesta.motor_ingesta import MotorIngesta
 
 
 class FlujoDiario:
@@ -31,6 +32,7 @@ class FlujoDiario:
             from databricks.connect import DatabricksSession
             self.spark = DatabricksSession.builder.getOrCreate()
         else:
+            from pyspark.sql import SparkSession
             self.spark = SparkSession.builder.getOrCreate()
 
 
@@ -41,7 +43,7 @@ class FlujoDiario:
         :return:
         """
 
-        # raise NotImplementedError("completa el código de esta función")   # borra esta línea cuando resuelvas
+
         try:
             # Procesamiento diario: crea un nuevo objeto motor de ingesta con self.config, invoca a ingesta_fichero,
             # después a las funciones que añaden columnas adicionales, y finalmente guarda el DF en la tabla indicada en
@@ -71,7 +73,8 @@ class FlujoDiario:
             dia_actual = flights_df.first().FlightDate
             dia_previo = dia_actual - timedelta(days=1)
             try:
-                flights_previo = spark.read.table(self.config["output_table"]).where(F.col("FlightDate") == dia_previo)
+                flights_previo = self.spark.read.table(self.config["output_table"]).where(F.col("FlightDate") == dia_previo)
+                flights_previo.limit(1).collect() # para verificar que realmente busca en la tabla
                 logger.info(f"Leída partición del día {dia_previo} con éxito")
             except Exception as e:
                 logger.info(f"No se han podido leer datos del día {dia_previo}: {str(e)}")
@@ -105,7 +108,7 @@ class FlujoDiario:
             df_with_next_flight\
                 .coalesce(self.config.get("output_partitions", 1))\
                 .write.mode("overwrite").option("partitionOverwriteMode", "dynamic")\
-                .option("path",self.config["output_path"]).partitionBy("FlightDate")\
+                .partitionBy("FlightDate")\
                 .saveAsTable(self.config["output_table"])
 
             logger.info(f"Procesamiento completado para el día {dia_actual}")
@@ -120,12 +123,10 @@ class FlujoDiario:
 
 
 if __name__ == '__main__':
-    spark = SparkSession.builder.getOrCreate()   # sólo si lo ejecutas localmente
-    root_path = Path(__file__).resolve()
-    root_path = root_path.parent.parent
-
-    path_config = str(root_path / "config/config.json")
+   # spark = SparkSession.builder.getOrCreate()   # sólo si lo ejecutas localmente
+    root_path = Path(__file__).parent.parent
+    path_config = str(root_path/"config"/"config.json")
     flujo = FlujoDiario(path_config)
-    flujo.procesa_diario(...)
+    flujo.procesa_diario("abfss://datos@masterap001sta.dfs.core.windows.net/2023-01-01.json")
 
     # Recuerda que puedes crear el wheel ejecutando en la línea de comandos: python setup.py bdist_wheel
