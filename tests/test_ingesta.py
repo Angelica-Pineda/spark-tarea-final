@@ -1,5 +1,6 @@
 import json
 from collections import namedtuple
+from datetime import datetime
 from pathlib import Path
 from motor_ingesta.motor_ingesta import MotorIngesta
 from motor_ingesta.agregaciones import aniade_intervalos_por_aeropuerto, aniade_hora_utc
@@ -133,8 +134,10 @@ def test_aniade_hora_utc(spark):
         ["Origin", "FlightDate", "DepTime"]
     )
 
+    expected_flightime = datetime(2023, 12, 25, 20, 35)
+
     expected_df = spark.createDataFrame(
-        [("JFK", "2023-12-25", 1535,"2023-12-25 20:35:00")],
+        [("JFK", "2023-12-25", 1535,expected_flightime)],
         ["Origin", "FlightDate", "DepTime","FlightTime"]
     )
 
@@ -145,4 +148,4 @@ def test_aniade_hora_utc(spark):
 
     # Comparar los campos de ambos objetos Row
     assert "FlightTime" in result_df.columns, "La columna FlightTime no existe en el dataframe resultante"
-    assert actual_row["FlightTime"] == expected_row["FlightTime"], "Error en el timestamp del vuelo se esperaba {expected_row['FlightTime']} pero se obtuvo {actual_row['FlightTime']}"
+    assert actual_row["FlightTime"] == expected_row["FlightTime"], f"Error en el timestamp del vuelo se esperaba {expected_row['FlightTime']} pero se obtuvo {actual_row['FlightTime']}"
