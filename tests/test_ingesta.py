@@ -27,12 +27,16 @@ def test_aplana(spark):
     )
 
     # Invocamos al método aplana_df de la clase MotorIngesta para aplanar el DF test_df
-    aplanado_df = ...
+    aplanado_df = MotorIngesta.aplana_df(test_df)
 
+    expected_cols = {"a1", "a2", "a3", "b1", "b2", "nombre", "edad"}
+    aplanado_df_cols = set(aplanado_df.columns)
     # Comprobamos (assert) que cada una de las columnas a1, a2, a3, b1, b2, nombre, edad
     # están incluidas en la lista de columns de aplanado_df. Las columnas "tupla" y "amigos" ya no deben existir
 
-    assert(...)
+    assert expected_cols.issubset(aplanado_df_cols)
+    assert "tupla" not in aplanado_df_cols
+    assert "amigos" not in aplanado_df_cols
 
 
 def test_ingesta_fichero(spark):
@@ -51,8 +55,8 @@ def test_ingesta_fichero(spark):
     path_test_data = carpeta_este_fichero + "/resources/test_data.json"
 
     # Leer el fichero test_config.json como diccionario con json.load(f)
-    with ... :
-        config = ...
+    with open(path_test_config, "r") as f:
+            config = json.load(f)
 
     # Crear un objeto motor de ingesta a partir del diccionario config
     # motor_ingesta = ...
@@ -63,11 +67,18 @@ def test_ingesta_fichero(spark):
     datos_df = motor_ingesta.ingesta_fichero(path_test_data)
 
     # Comprobar que los datos ingestados tienen una sola fila y las columnas nombre, parentesco, numero, profesion
-    assert(...)  # comprobar que tiene 4 columnas y que nombre, parentesco, numero, profesion están incluidas
+    # comprobar que tiene 4 columnas y que nombre, parentesco, numero, profesion están incluidas
+    expected_cols = ["nombre", "parentesco", "numero", "profesion"]
+    assert datos_df.count() == 1
+    assert all(col in datos_df.columns for col in expected_cols)
 
     # primera_fila = ...    # extraer el objeto de la primera fila
     primera_fila = datos_df.first()
-    assert(...)  # comprobar que la primera fila contiene los valores adecuados en cada uno de sus 4 campos
+    assert primera_fila["nombre"] == "Juan"
+    assert primera_fila["parentesco"] == "sobrino"
+    assert primera_fila["numero"] == 3
+    assert primera_fila["profesion"] == "Ingeniero"
+      # comprobar que la primera fila contiene los valores adecuados en cada uno de sus 4 campos
 
 
 def test_aniade_intervalos_por_aeropuerto(spark):
@@ -89,16 +100,20 @@ def test_aniade_intervalos_por_aeropuerto(spark):
     ).withColumn("FlightTime", F.col("FlightTime").cast("timestamp"))
 
     expected_df = spark.createDataFrame(
-        # Completa el DataFrame que deberíamos obtener
-    )
+        [("JFK", "2023-12-25 15:35:00", "American_Airlines", "2023-12-25 17:35:00", "Iberia", 7200)],
+        ["Origin", "FlightTime", "Reporting_Airline", "FlightTime_next", "Airline_next", "diff_next"]
+    ).withColumn("FlightTime", F.col("FlightTime").cast("timestamp")) \
+        .withColumn("FlightTime_next", F.col("FlightTime_next").cast("timestamp"))
 
-    expected_row = ...         # extraer la primera fila de expected_df
+    expected_row = expected_df.first()
 
     result_df = aniade_intervalos_por_aeropuerto(test_df)
-    actual_row = ...           # extraer la primera fila de result_df
+    actual_row = result_df.first()
 
     # Comparar los campos de ambos objetos Row
-    # assert(...)
+    assert actual_row["FlightTime_next"] == expected_row["FlightTime_next"], "Error en el timestamp del vuelo siguiente"
+    assert actual_row["Airline_next"] == expected_row["Airline_next"], "Error en la aerolínea del vuelo siguiente"
+    assert actual_row["diff_next"] == expected_row["diff_next"], "Error en el cálculo"
 
 
 def test_aniade_hora_utc(spark):
@@ -111,7 +126,7 @@ def test_aniade_hora_utc(spark):
     #            EJERCICIO OPCIONAL
     ##################################################
 
-    fichero_timezones = str(Path(__file__).parent) + "../motor_ingesta/resources/timezones.csv"
+    #fichero_timezones = str(Path(__file__).parent) + "../motor_ingesta/resources/timezones.csv"
 
     test_df = spark.createDataFrame(
         [("JFK", "2023-12-25", 1535)],
@@ -119,13 +134,15 @@ def test_aniade_hora_utc(spark):
     )
 
     expected_df = spark.createDataFrame(
-        # Completa el DataFrame que deberíamos obtener
+        [("JFK", "2023-12-25", 1535,"2023-12-25 20:35:00")],
+        ["Origin", "FlightDate", "DepTime","FlightTime"]
     )
 
-    expected_row = None  # extraer la primera fila de expected_df
+    expected_row = expected_df.first()
 
     result_df = aniade_hora_utc(spark, test_df)
-    actual_row = ...  # extraer la primera fila de result_df
+    actual_row = result_df.first()
 
     # Comparar los campos de ambos objetos Row
-    assert(...)
+    assert "FlightTime" in result_df.columns, "La columna FlightTime no existe en el dataframe resultante"
+    assert actual_row["FlightTime"] == expected_row["FlightTime"], "Error en el timestamp del vuelo se esperaba {expected_row['FlightTime']} pero se obtuvo {actual_row['FlightTime']}"
