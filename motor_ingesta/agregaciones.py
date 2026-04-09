@@ -6,11 +6,12 @@ import pandas as pd
 
 def aniade_hora_utc(spark: SparkSession, df: DF) -> DF:
     """
-    Completa la documentación
-    :param spark:
-    :param df:
-    :param fichero_timezones:
-    :return:
+    Metodo que crea una columna adicional FlightTime tipo datetime en base a los campos DepTime y FlightDate
+    la cual contiene la fecha y hora del vuelo, tomando en cuenta la informacion de timezone.
+    :param spark: Sesion de spark
+    :param df: Dataframe con campos aplanados
+    :param fichero_timezones: fichero csv con informacion de timezones.
+    :return: Dataframe con columna adicional FlightTime tipo datetime.
     """
 
     # Antes de empezar el ejercicio 2, debemos unir a los vuelos la zona horaria del aeropuerto de salida del vuelo,

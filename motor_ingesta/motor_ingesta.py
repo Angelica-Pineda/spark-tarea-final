@@ -5,7 +5,8 @@ from pyspark.sql import DataFrame as DF, functions as F, SparkSession
 
 class MotorIngesta:
     """
-    Completar docstring
+    Clase que realiza una ingesta de datos leyendo un fichero desde una ruta especifica para
+    generar un dataframe que aplica una logica de aplanamiento de campos de tipo array y estructura.
     """
     def __init__(self, config: dict, spark: SparkSession = None):
         """
@@ -20,9 +21,10 @@ class MotorIngesta:
 
     def ingesta_fichero(self, json_path: str) -> DF:
         """
-        Completar docstring
-        :param json_path:
-        :return:
+        Metodo que lee un fichero json desde una ruta definida, luego identifica campos tipo array y estructura
+        para aplanar el dataframe y obtener todos los campos del archivo json.
+        :param json_path: Ruta donde se extrae el archivo en formato json
+        :return: Dataframe con campos de tipo array y estructura aplanados.
         """
         # Leemos el JSON como DF, tratando de inferir el esquema, y luego lo aplanamos.
         # Por último nos quedamos con las columnas indicadas en el fichero de configuración,
