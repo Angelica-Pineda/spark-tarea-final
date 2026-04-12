@@ -1,0 +1,1 @@
+recursive-include motor_ingesta/resources *.csv
