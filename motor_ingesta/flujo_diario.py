@@ -38,26 +38,19 @@ class FlujoDiario:
 
     def procesa_diario(self, data_file: str):
         """
-        Orquesta el proceso de ingesta, transformación y persistencia.
-        :param data_file:
-        :return:
+        Orquesta el proceso de ingesta, transformación y persistencia de inforamcion de vuelos creando un nuevo objeto
+        motor de ingesta, aplica transformaciones y guarda los datos en una tabla agestionada.
+        :param data_file: Ruta donde se encuentra el fichero json con la informacion de vuelos
         """
 
 
         try:
-            # Procesamiento diario: crea un nuevo objeto motor de ingesta con self.config, invoca a ingesta_fichero,
-            # después a las funciones que añaden columnas adicionales, y finalmente guarda el DF en la tabla indicada en
-            # self.config["output_table"], que debe crearse como tabla manejada (gestionada), sin usar ningún path,
-            # siempre particionando por FlightDate. Tendrás que usar .write.option("path", ...).saveAsTable(...) para
-            # indicar que queremos crear una tabla externa en el momento de guardar.
-            # Conviene cachear el DF flights_df así como utilizar el número de particiones indicado en
-            # config["output_partitions"]
 
-            # objeto motor_ingesta que invoca metodo ingesta_fichero para ingesta basica
+            # objeto motor_ingesta que invoca metodo ingesta_fichero
             motor_ingesta = MotorIngesta(self.config, spark=self.spark)
             flights_df = motor_ingesta.ingesta_fichero(data_file)
 
-            # Cacheo flights_dg para evitar reprocesar el json en cada acción
+            # Cacheo flights_df para evitar reprocesar el json en cada acción
             flights_df.cache()
 
             # Paso 1. Invocamos al método para añadir la hora de salida UTC
@@ -67,9 +60,6 @@ class FlujoDiario:
             # -----------------------------
             #  CÓDIGO PARA EL EJERCICIO 4
             # -----------------------------
-            # Paso 2. Para resolver el ejercicio 4 que arregla el intervalo faltante entre días,
-            # hay que leer de la tabla self.config["output_table"] la partición del día previo si existiera. Podemos
-            # obviar este código hasta llegar al ejercicio 4 del notebook
             dia_actual = flights_df.first().FlightDate
             dia_previo = dia_actual - timedelta(days=1)
             try:
@@ -81,9 +71,7 @@ class FlujoDiario:
                 flights_previo = None
 
             if flights_previo:
-                # añadir columnas a F.lit(None) haciendo cast al tipo adecuado de cada una, y unirlo con flights_previo.
-                # OJO: hacer select(flights_previo.columns) para tenerlas en el mismo orden antes de
-                # la unión, ya que la columna de partición se había ido al final al escribir
+
 
                 cols_vuelo_siguiente = ["FlightTime_next", "Airline_next", "diff_next"]
                 df_hoy_preparado = flights_with_utc
@@ -92,7 +80,6 @@ class FlujoDiario:
 
                 df_unido = flights_previo.select(df_hoy_preparado.columns).union(df_hoy_preparado)
 
-                # Spark no permite escribir en la misma tabla de la que estamos leyendo. Por eso salvamos
                 df_unido.write.mode("overwrite").saveAsTable("tabla_provisional")
                 df_unido = self.spark.read.table("tabla_provisional")
 
@@ -102,8 +89,8 @@ class FlujoDiario:
             # Paso 3. Invocamos al método para añadir información del vuelo siguiente
             df_with_next_flight = aniade_intervalos_por_aeropuerto(df_unido)
 
-            # Paso 4. Escribimos el DF en la tabla externa config["output_table"] con ubicación config["output_path"], con
-            # el número de particiones indicado en config["output_partitions"]
+            # Escribimos el DF en la tabla externa config["output_table"], sera una tabla gestionada
+            # por tanto no se usa ouyput path, con el número de particiones indicado en config["output_partitions"]
             # df_with_next_flight.....(...)..write.mode("overwrite").option("partitionOverwriteMode", "dynamic")....
             df_with_next_flight\
                 .coalesce(self.config.get("output_partitions", 1))\

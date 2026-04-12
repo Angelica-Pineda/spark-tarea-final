@@ -10,8 +10,8 @@ class MotorIngesta:
     """
     def __init__(self, config: dict, spark: SparkSession = None):
         """
-        Completar docstring
-        :param config_file:
+        Constructor que inicializa la configuración y la sesión de Spark iniciada en proceso flujo diario.
+        :param config: Diccionario de Datos del archivo de config.json
         """
         self.config = config
         if spark:
@@ -26,17 +26,6 @@ class MotorIngesta:
         :param json_path: Ruta donde se extrae el archivo en formato json
         :return: Dataframe con campos de tipo array y estructura aplanados.
         """
-        # Leemos el JSON como DF, tratando de inferir el esquema, y luego lo aplanamos.
-        # Por último nos quedamos con las columnas indicadas en el fichero de configuración,
-        # en la propiedad self.config["data_columns"], que es una lista de diccionarios. Debemos recorrer
-        # esa lista, seleccionando la columna y convirtiendo cada columna al tipo indicado en el fichero.
-
-        # PISTA: crear en lista_obj_column una lista de objetos Column como lista por comprensión a partir
-        # de self.config["data_columns"], y luego usar dicha lista como argumento de select(...). El DF resultante
-        # debe ser devuelto como resultado de la función.
-
-        # Para incluir también el campo "comment" como metadatos de la columna, podemos hacer:
-        # F.col(...).cast(...).alias(..., metadata={"comment": ...})
 
         flights_day_df = self.spark.read.option("multiLine", "true").json(json_path)
 
